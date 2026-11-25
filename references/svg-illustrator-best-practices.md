@@ -49,7 +49,8 @@ Follow these conventions so generated SVGs open cleanly in **Adobe Illustrator**
 - For right-angle elbow connectors, add small quadratic rounded bends (`Q`) so transitions look refined and publication-ready.
 - Avoid SVG `<marker>` for arrowheads when targeting Adobe Illustrator — Illustrator sometimes mishandles marker scaling or color inheritance. Draw explicit `<polygon>` arrowheads instead so color, angle, and size are 100% deterministic.
 
-## 5. Integrating Extracted Vector Sub-Illustrations & Embedded 3D Backgrounds
-- When importing paths from another SVG, check every `<path>` with a `stroke` and no explicit `fill`: always attach `fill="none"` so curved stroke arrows do not render as solid black shapes.
+## 5. Pure Vector Guarantee & Illustrator Compatibility Guardrails
+- **100% Pure Vector by Default (Zero `<image>` raster nodes)**: Always convert organic/anatomical/3D sub-illustrations (or full 3D backgrounds) into true vector `<path>` groups via local open-source `vtracer` (`scripts/trace_local_roi.py` or `vtracer.convert_file`). Only embed a raster `<image>` if the user explicitly asks to keep a photographic/3D raster background — and if so, always use SVG 1.1 `xlink:href="data:image/png;base64,..."` (never bare SVG 2 `href`).
+- **NEVER use `<feDropShadow>` or unsupported SVG 2 filters**: Adobe Illustrator ignores or hides entire `<g>` layers attached to `<feDropShadow>` filters! To create glows or shadows cleanly in Illustrator, use pure native semi-transparent under-strokes (e.g., `stroke-opacity="0.28"` wider stroke underneath) or radial gradients.
+- **Stroke-only path inheritance**: When importing paths from another SVG, check every `<path>` with a `stroke` and no explicit `fill`: always attach `fill="none"` so curved stroke arrows do not render as solid black shapes.
 - Filter out bounding-box-sized solid white background rectangles so sub-illustrations blend seamlessly over tinted or gradient cards.
-- **CRITICAL Adobe Illustrator SVG 1.1 rule for `<image>`**: When embedding a raster/3D background layer (`data:image/png;base64,...`), **ALWAYS** declare `xmlns:xlink="http://www.w3.org/1999/xlink"` on `<svg>` and use **`xlink:href="data:image/png;base64,..."`** (NEVER bare SVG 2 `href="..."`). Illustrator ignores bare `href` on `<image>` and pops up `"Could not find linked file ''"`.
