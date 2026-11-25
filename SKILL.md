@@ -39,7 +39,8 @@ Partition the figure into two tiers:
   - Flat icons and all text, labels, legends, and mathematical formulas with native `<tspan>` subscripts/superscripts.
 - **Tier 2 (Local Organic/Anatomical ROIs — only when complex shaded illustrations exist)**:
   - Identify tight ROI bounding boxes `[x0, y0, x1, y1]` around each organic sub-illustration.
-  - If an anatomical ROI overlaps text, first run `scripts/seamless_inpaint_clean.py` (pixel-level stroke mask + Laplace harmonic diffusion — never flat rectangle filling!) on just that region.
+  - If an anatomical ROI overlaps text, first run `scripts/seamless_inpaint_clean.py` (with optional `--mask-output <mask.png>` for auditability) on just that region.
+  - **Optional Local-First Neural Regeneration Branch**: When explicitly requested for complex organic texture ROIs, follow [references/neural-regeneration-protocol.md](references/neural-regeneration-protocol.md) and use `scripts/neural_regeneration.py` (`prepare -> run -> qa -> accept|reject`). Defaults are local-first and conservative (`vae_roundtrip` single pass or `diffusion_img2img` at `strength=0.10`, cap `0.20`, no prompt/ControlNet/LoRA, reversible edge padding). On failure, timeout, missing dependencies, or QA rejection, preserve `manifest.json` as `unverified`/`rejected` and automatically fall back to the untouched original/cleaned SVG path. Never use reconstructed output for Tier 1 structure or scientific evidence.
   - Convert or extract each ROI as a clean pure-vector `<g id="Art_...">` using `scripts/trace_local_roi.py`:
     - Mode A (local free tracing): `python scripts/trace_local_roi.py --mode vtracer --image <img.png> --roi x0,y0,x1,y1 --output <roi.svg>`
     - Mode B (extract from existing SVG): `python scripts/trace_local_roi.py --mode extract-svg --svg <existing.svg> --roi x0,y0,x1,y1 --output <roi.svg>`

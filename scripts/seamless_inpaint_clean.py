@@ -22,7 +22,13 @@ def dilate(mask: np.ndarray, iters: int = 2) -> np.ndarray:
     return out
 
 
-def clean_image(image_path: Path, boxes: list[dict], output_path: Path, iterations: int = 160) -> None:
+def clean_image(
+    image_path: Path,
+    boxes: list[dict],
+    output_path: Path,
+    iterations: int = 160,
+    mask_output: Path | None = None,
+) -> None:
     im = Image.open(image_path).convert("RGB")
     arr = np.array(im, dtype=np.float32)
     bg_light = np.array(im.filter(ImageFilter.MaxFilter(size=15)), dtype=np.float32)
@@ -63,17 +69,29 @@ def clean_image(image_path: Path, boxes: list[dict], output_path: Path, iteratio
     output_path.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(np.clip(res, 0, 255).astype(np.uint8)).save(output_path)
 
+    if mask_output is not None:
+        mask_output.parent.mkdir(parents=True, exist_ok=True)
+        mask_img = (full_mask.astype(np.uint8) * 255)
+        Image.fromarray(mask_img, mode="L").save(mask_output)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Remove text strokes seamlessly via Laplace harmonic diffusion.")
     parser.add_argument("--image", required=True, type=Path)
     parser.add_argument("--boxes-json", required=True, type=Path, help="JSON list of {x,y,w,h,mode}")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--mask-output", type=Path, default=None, help="Optional binary mask PNG output for audit")
     parser.add_argument("--iterations", type=int, default=160)
     args = parser.parse_args()
 
     boxes = json.loads(args.boxes_json.read_text(encoding="utf-8"))
-    clean_image(args.image.resolve(), boxes, args.output.resolve(), args.iterations)
+    clean_image(
+        args.image.resolve(),
+        boxes,
+        args.output.resolve(),
+        args.iterations,
+        args.mask_output.resolve() if args.mask_output else None,
+    )
     print(f"SEAMLESS_CLEAN_OK|{args.output}")
     return 0
 

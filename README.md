@@ -33,12 +33,16 @@ Image-Reconstruction/
 ├── LICENSE                                    # MIT License
 ├── requirements.txt                           # Python dependencies
 ├── references/
-│   └── svg-illustrator-best-practices.md      # Illustrator-ready SVG authoring guide
-└── scripts/
-    ├── inspect_image.py                       # Canvas size, hex color sampling, Windows OCR boxes
-    ├── trace_local_roi.py                     # Local free vtracer ROI vectorization & SVG ROI extractor
-    ├── seamless_inpaint_clean.py              # Stroke-masked Laplace harmonic diffusion text removal
-    └── render_svg_preview.py                  # Headless Edge/Chrome SVG -> PNG preview renderer
+│   ├── svg-illustrator-best-practices.md      # Illustrator-ready SVG authoring guide
+│   └── neural-regeneration-protocol.md        # Optional local-first VAE / Diffusion protocol & QA
+├── scripts/
+│   ├── inspect_image.py                       # Canvas size, hex color sampling, Windows OCR boxes
+│   ├── trace_local_roi.py                     # Local free vtracer ROI vectorization & SVG ROI extractor
+│   ├── seamless_inpaint_clean.py              # Stroke-masked Laplace harmonic diffusion text removal (+ mask export)
+│   ├── neural_regeneration.py                 # Optional local-first VAE / Diffusion backend, QA & audit manifest CLI
+│   └── render_svg_preview.py                  # Headless Edge/Chrome SVG -> PNG preview renderer
+└── tests/
+    └── test_neural_regeneration.py            # Automated tests for pad/crop, state machine, QA, fallback & redaction
 ```
 
 ---
