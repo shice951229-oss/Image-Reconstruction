@@ -1,26 +1,24 @@
 # Image-Reconstruction
 
-**Zero-cost, publication-grade scientific figure reconstruction into clean, native editable SVG** — directly openable in **Adobe Illustrator**, **Inkscape**, or **Figma** to edit and export as `.ai`, `.pdf`, `.eps`, or high-DPI `.tiff`.
+**Zero-cost, publication-grade scientific figure & 3D cover reconstruction into clean, native editable SVG** — directly openable in **Adobe Illustrator**, **Inkscape**, or **Figma** with **zero missing-link, missing-font, or filter popups** to edit and export as `.ai`, `.pdf`, `.eps`, or high-DPI `.tiff`.
 
-**零费用、出版级科研插图原生矢量重建 Skill** —— 无需任何付费位图描摹 API，直接生成结构清晰、图层规范、文字与公式原生可编辑的 SVG 文件，拖入 **Adobe Illustrator** 即可秒开编辑并导出投稿级 `.ai` / `.pdf` / `.eps` / 600 DPI `.tiff`。
+**零费用、出版级科研插图与 3D 期刊封面可编辑 SVG 重建 Skill** —— 无需任何付费描摹 API，支持 **双轨架构**：既可将 2D 科研机制图/流程图/曲线图 100% 重建为纯原生矢量（**`PureVector-2D`**），也可将 3D 渲染期刊封面/体积光影插画重建为光影零色块量化、文字与柔和渐变箭头原生可编辑的分层 SVG（**`CineHybrid-3D`**），拖入 **Adobe Illustrator** 秒开无弹窗。
 
 ---
 
-## Why Image-Reconstruction? / 为什么需要它？
+## Dual-Track Architecture / 双轨重建架构
 
-Traditional bitmap auto-tracing APIs (e.g., whole-image vectorizers) often fail on scientific figures:
-- **Broken 1 px borders & dashed lines** (thin gray frames get merged into the background)
-- **Patchy color blocks** (gradient cards break into uneven rectangular shards)
-- **Uneditable geometry** (a single rounded card becomes dozens of fragmented paths)
-- **Missing-glyph boxes (`☒`)** when obscure Unicode subscripts/superscripts are used
-- **Per-image API fees**
+| Mode / 模式名称 | Target Scenarios / 适用场景 | Core Mechanism / 核心技术方案 |
+| :--- | :--- | :--- |
+| **`PureVector-2D`**<br>（纯原生矢量重建模式） | 2D scientific diagrams, flowcharts, mechanism schematics, mathematical curve plots, multi-panel roadmaps<br>（2D 科研机制图、流程图、函数曲线图、技术路线图） | **100% Pure Vector (`0` `<image>` nodes)**: Cards (`<rect rx>`), clipped headers (`<clipPath>` + `<linearGradient>`), smooth Bezier/sine curves, elbow connectors, native `<tspan>` subscripts/superscripts (`0` `☒` missing glyphs) + local free `vtracer` ROI vectorization for small anatomical icons. |
+| **`CineHybrid-3D`**<br>（3D 光影无损混合分层模式） | 3D rendered journal covers (*Nature* / *Cell* / *Science* style), continuous volumetric lighting, bokeh depth-of-field blur, glowing cells & micro-particles<br>（3D 渲染期刊封面、连续体积光影、景深散景与微米粒子插画） | **4-Step Lossless 3D + Native Vector Overlay**:<br>1. Surgical stroke-masked Laplace harmonic inpainting (`240` iterations, `text_mask.png`) removes old text/arrows with zero background damage.<br>2. Ultra-low-strength local `stabilityai/sd-turbo` (`strength=0.01, steps=100`, CUDA) regenerates lossless 3D texture without "oil-painting" posterization (`mean_abs_rgb_delta < 4.0`).<br>3. SVG 1.1 `xlink:href` Base64 `Layer_3D_Artwork` + filter-free dual-stroke multi-stop opacity gradient `Layer_Vector_Arrows` (`0` `<feDropShadow>`) + single Windows system font (`Segoe UI` / `Georgia`) slender editable `Layer_Labels` & `Layer_Masthead`.<br>4. Headless Edge 1:1 PNG visual QA verification. |
 
-**Image-Reconstruction** solves all of these with a **Hybrid Native-Vector Architecture** at **$0 cost**:
-1. **Pure Native SVG Structure (Tier 1)**: Cards (`<rect rx>`), linear gradients (`<linearGradient>`), clipped headers (`<clipPath>`), axes, smooth mathematical curves (Bezier / sine waves), connectors, arrows, flat icons, and live editable typography are authored directly in clean semantic SVG code.
-2. **Zero Missing Glyphs**: Uses standard ASCII/Greek characters with native `<tspan font-size dy>` subscripts/superscripts and vector overbars (`w̄`) — never produces `☒` in Adobe Illustrator.
-3. **Free Local Hybrid ROI Tracing (Tier 2)**: Complex shaded anatomical or organic sub-illustrations (e.g., brain gyri, corticospinal tract, spinal cord, muscle, synapses) are cropped into tight ROIs and vectorized locally with open-source [`vtracer`](https://github.com/visioncortex/vtracer) (or extracted from existing SVGs with automatic `fill="none"` preservation), then embedded as named `<g id="Art_...">` groups.
-4. **Seamless Stroke-Masked Inpainting**: When text overlaps an anatomical ROI, `seamless_inpaint_clean.py` uses pixel-level stroke masking + Laplace harmonic diffusion (never flat rectangular fills) so gradients and borders stay 100% seamless.
-5. **Mandatory Visual QA Loop**: Automatically renders a 1:1 PNG preview via headless Edge/Chrome (`render_svg_preview.py`) so the agent visually inspects and polishes alignment, curve bounds, and spacing against the original figure before delivery.
+---
+
+## Why Dual-Track? / 为什么采用双轨方案？
+
+1. **For 2D Diagrams (`PureVector-2D`)**: Whole-image bitmap auto-tracing breaks 1 px borders, turns gradient headers into patchy shards, and fragments boxes into uneditable paths. Authoring structure directly in native SVG code + isolating small anatomical sub-illustrations with local `vtracer` delivers 100% pure vector precision at **$0 cost**.
+2. **For 3D Covers (`CineHybrid-3D`)**: Running polygon vectorization (`vtracer`) across a full 3D volumetric render quantizes continuous bokeh blur and radial cell glow into flat "oil-painting" color bands. `CineHybrid-3D` preserves 100% of the continuous 3D lighting in an audited `sd-turbo (0.01)` SVG 1.1 `xlink:href` bottom layer while reconstructing all mastheads, scientific labels, and soft long-fade golden arrows as crisp, slender, Illustrator-native vectors on top.
 
 ---
 
@@ -28,21 +26,21 @@ Traditional bitmap auto-tracing APIs (e.g., whole-image vectorizers) often fail 
 
 ```text
 Image-Reconstruction/
-├── SKILL.md                                   # Core agent skill instructions
+├── SKILL.md                                   # Dual-track agent skill instructions (PureVector-2D & CineHybrid-3D)
 ├── README.md                                  # Documentation (EN / ZH)
 ├── LICENSE                                    # MIT License
 ├── requirements.txt                           # Python dependencies
 ├── references/
-│   ├── svg-illustrator-best-practices.md      # Illustrator-ready SVG authoring guide
-│   └── neural-regeneration-protocol.md        # Optional local-first VAE / Diffusion protocol & QA
+│   ├── svg-illustrator-best-practices.md      # Illustrator-ready SVG 1.1 authoring & zero-popup guardrails
+│   └── neural-regeneration-protocol.md        # CineHybrid-3D (sd-turbo 0.01) & local-first neural regeneration protocol
 ├── scripts/
 │   ├── inspect_image.py                       # Canvas size, hex color sampling, Windows OCR boxes
-│   ├── trace_local_roi.py                     # Local free vtracer ROI vectorization & SVG ROI extractor
-│   ├── seamless_inpaint_clean.py              # Stroke-masked Laplace harmonic diffusion text removal (+ mask export)
-│   ├── neural_regeneration.py                 # Optional local-first VAE / Diffusion backend, QA & audit manifest CLI
-│   └── render_svg_preview.py                  # Headless Edge/Chrome SVG -> PNG preview renderer
+│   ├── trace_local_roi.py                     # Local free vtracer ROI vectorization & SVG ROI extractor (PureVector-2D)
+│   ├── seamless_inpaint_clean.py              # Surgical stroke-masked Laplace harmonic diffusion text/arrow removal
+│   ├── neural_regeneration.py                 # Local sd-turbo / VAE runner, QA, manifest & compose-hybrid-svg CLI (CineHybrid-3D)
+│   └── render_svg_preview.py                  # Headless Edge/Chrome SVG -> 1:1 PNG preview renderer
 └── tests/
-    └── test_neural_regeneration.py            # Automated tests for pad/crop, state machine, QA, fallback & redaction
+    └── test_neural_regeneration.py            # Automated tests for pad/crop, auto-steps, QA, CineHybrid-3D SVG & redaction
 ```
 
 ---
@@ -66,18 +64,18 @@ Image-Reconstruction/
 pip install -r requirements.txt
 ```
 
-> Requires Python 3.10+ and Microsoft Edge or Google Chrome installed for headless PNG visual QA rendering.
+> Requires Python 3.10+ and Microsoft Edge or Google Chrome installed for headless PNG visual QA rendering. For GPU-accelerated `CineHybrid-3D` (`stabilityai/sd-turbo`), install CUDA PyTorch (`torch`) and `diffusers`.
 
 ---
 
 ## Usage / 使用方式
 
-In your AI coding agent chat, upload a scientific diagram, flowchart, mechanism figure, or roadmap image and say:
+- **2D 科研插图纯矢量重建 (`PureVector-2D`)**:
+  - `用 Image-Reconstruction (PureVector-2D) 把这张科研机制图重建为纯原生矢量 SVG`
+- **3D 期刊封面/体积光影混合分层重建 (`CineHybrid-3D`)**:
+  - `用 Image-Reconstruction 的 CineHybrid-3D 方案重建这张 3D 封面，保留 sd-turbo 0.01 无损 3D 底图 + 原生纤细文字与柔和渐变矢量箭头`
 
-- Chinese: `用 Image-Reconstruction 重建这张图`
-- English: `Reconstruct this scientific figure as an editable native SVG using Image-Reconstruction.`
-
-Open the delivered `.svg` directly in **Adobe Illustrator** (or Inkscape / Figma) to fine-tune any layer, text, curve, or color and save as `.ai`, `.pdf`, `.eps`, or high-DPI `.tiff`.
+Open the delivered `.svg` directly in **Adobe Illustrator** (or Inkscape / Figma) to edit any layer, text, curve, or arrow and export as `.ai`, `.pdf`, `.eps`, or high-DPI `.tiff`.
 
 ---
 

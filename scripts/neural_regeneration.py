@@ -14,8 +14,11 @@ standard local SVG reconstruction path.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
+import html
 import json
+import math
 import os
 import re
 import shutil
@@ -39,12 +42,207 @@ if str(SCRIPT_DIR) not in sys.path:
 import seamless_inpaint_clean  # noqa: E402
 
 SCHEMA_VERSION = "1.0"
-DEFAULT_DIFFUSION_STRENGTH = 0.10
+DEFAULT_DIFFUSION_STRENGTH = 0.01
 MAX_SCIENTIFIC_STRENGTH = 0.20
 DEFAULT_PAD_MULTIPLE = 8
+CINE_HYBRID_DEFAULT_MODEL = "stabilityai/sd-turbo"
+FORBIDDEN_FONT_TOKENS = ("helvetica neue",)
 
 SECRET_KEY_RE = re.compile(r"(token|secret|password|passwd|api[_-]?key|authorization|bearer|credential)", re.I)
 BEARER_VALUE_RE = re.compile(r"Bearer\s+[A-Za-z0-9._\-+/=]+", re.I)
+
+
+def compute_effective_steps(mode: str, steps: int, strength: float) -> int:
+    """Ensure int(effective_steps * strength) >= 1 so ultra-low-strength img2img (e.g. 0.01) never runs 0 steps."""
+    if mode == "vae_roundtrip":
+        return 1
+    min_needed = int(math.ceil(1.0 / max(float(strength), 1e-6)))
+    return max(int(steps), min_needed)
+
+
+def sanitize_single_system_font(font_family: str | None, default: str = "Segoe UI") -> str:
+    """Enforce a single installed Windows system font name (no CSS fallback list or uninstalled Helvetica Neue)."""
+    if not font_family:
+        return default
+    candidates = [c.strip().strip("'\"") for c in str(font_family).split(",") if c.strip()]
+    for cand in candidates:
+        if cand.lower() not in FORBIDDEN_FONT_TOKENS:
+            return cand
+    return default
+
+
+def compose_cine_hybrid_svg(
+    background_png: Path,
+    spec: dict[str, Any],
+    output_svg: Path,
+) -> dict[str, Any]:
+    """Compose a CineHybrid-3D Illustrator-ready SVG 1.1 file:
+    - Layer_3D_Artwork: Base64 PNG via SVG 1.1 xmlns:xlink + xlink:href (zero missing-link dialog)
+    - Layer_Vector_Arrows: userSpaceOnUse multi-stop opacity gradients + dual-stroke soft glow (zero <feDropShadow>)
+    - Layer_Labels & Layer_Masthead: live editable <text> with single Windows system font names (zero font error dialog)
+    """
+    with Image.open(background_png) as im:
+        w, h = im.size
+    b64_data = base64.b64encode(background_png.read_bytes()).decode("ascii")
+
+    arrows: list[dict[str, Any]] = list(spec.get("arrows") or [])
+    labels: list[dict[str, Any]] = list(spec.get("labels") or [])
+    masthead: list[dict[str, Any]] = list(spec.get("masthead") or [])
+
+    defs_lines: list[str] = []
+    arrow_lines: list[str] = []
+
+    for idx, arr in enumerate(arrows, start=1):
+        grad_id = str(arr.get("gradient_id") or f"cineArrowGrad{idx}")
+        x1 = float(arr["x1"])
+        y1 = float(arr["y1"])
+        x2 = float(arr["x2"])
+        y2 = float(arr["y2"])
+        gx2 = float(arr.get("grad_x2", x2))
+        gy2 = float(arr.get("grad_y2", y2))
+        stops = arr.get("stops") or [
+            {"offset": "0%", "color": "#FFD88A", "opacity": 0.0},
+            {"offset": "35%", "color": "#FFE2A3", "opacity": 0.55},
+            {"offset": "80%", "color": "#FFF0C8", "opacity": 0.92},
+            {"offset": "100%", "color": "#FFF8E2", "opacity": 1.0},
+        ]
+        defs_lines.append(
+            f'    <linearGradient id="{html.escape(grad_id)}" x1="{x1:g}" y1="{y1:g}" '
+            f'x2="{gx2:g}" y2="{gy2:g}" gradientUnits="userSpaceOnUse">'
+        )
+        for st in stops:
+            defs_lines.append(
+                f'      <stop offset="{html.escape(str(st["offset"]))}" '
+                f'stop-color="{html.escape(str(st["color"]))}" '
+                f'stop-opacity="{float(st.get("opacity", 1.0)):g}"/>'
+            )
+        defs_lines.append("    </linearGradient>")
+
+        glow_width = float(arr.get("glow_width", 6.5))
+        glow_opacity = float(arr.get("glow_opacity", 0.22))
+        core_width = float(arr.get("core_width", 2.7))
+        head_fill = str(arr.get("head_fill", "#FFF6DC"))
+        head_points = arr.get("head_points")
+        if not head_points:
+            # Automatic deterministic triangle arrowhead aligned with (x1,y1)->(x2,y2)
+            dx, dy = x2 - x1, y2 - y1
+            length = max(math.hypot(dx, dy), 1e-6)
+            ux, uy = dx / length, dy / length
+            px, py = -uy, ux
+            tip_x = x2 + ux * 10.0
+            tip_y = y2 + uy * 10.0
+            base_x = x2 - ux * 4.0
+            base_y = y2 - uy * 4.0
+            p1 = (tip_x, tip_y)
+            p2 = (base_x + px * 6.0, base_y + py * 6.0)
+            p3 = (base_x - px * 6.0, base_y - py * 6.0)
+            head_points = f"{p1[0]:.1f},{p1[1]:.1f} {p2[0]:.1f},{p2[1]:.1f} {p3[0]:.1f},{p3[1]:.1f}"
+
+        arrow_id = html.escape(str(arr.get("id") or f"Arrow_{idx}"))
+        arrow_lines.extend(
+            [
+                f'    <g id="{arrow_id}">',
+                f'      <line x1="{x1:g}" y1="{y1:g}" x2="{x2:g}" y2="{y2:g}" '
+                f'stroke="url(#{html.escape(grad_id)})" stroke-opacity="{glow_opacity:g}" '
+                f'stroke-width="{glow_width:g}" stroke-linecap="round"/>',
+                f'      <line x1="{x1:g}" y1="{y1:g}" x2="{x2:g}" y2="{y2:g}" '
+                f'stroke="url(#{html.escape(grad_id)})" stroke-width="{core_width:g}" stroke-linecap="round"/>',
+                f'      <polygon points="{html.escape(str(head_points))}" fill="{html.escape(head_fill)}"/>',
+                "    </g>",
+            ]
+        )
+
+    def _render_text_items(items: list[dict[str, Any]], default_font: str) -> list[str]:
+        out: list[str] = []
+        for item in items:
+            x = float(item["x"])
+            y = float(item["y"])
+            text_val = html.escape(str(item["text"]))
+            font_family = html.escape(sanitize_single_system_font(item.get("font_family"), default=default_font))
+            font_size = float(item.get("font_size", 20))
+            font_weight = html.escape(str(item.get("font_weight", "400")))
+            fill = html.escape(str(item.get("fill", "#FFFFFF")))
+            anchor = item.get("text_anchor")
+            letter_spacing = item.get("letter_spacing")
+            rotate = item.get("rotate")
+
+            attrs = [
+                f'x="{x:g}"',
+                f'y="{y:g}"',
+            ]
+            if anchor:
+                attrs.append(f'text-anchor="{html.escape(str(anchor))}"')
+            attrs.extend(
+                [
+                    f'font-family="{font_family}"',
+                    f'font-size="{font_size:g}"',
+                    f'font-weight="{font_weight}"',
+                ]
+            )
+            if letter_spacing is not None:
+                attrs.append(f'letter-spacing="{float(letter_spacing):g}"')
+            attrs.append(f'fill="{fill}"')
+            if rotate is not None:
+                attrs.append(f'transform="rotate({float(rotate):g} {x:g} {y:g})"')
+            out.append(f"    <text {' '.join(attrs)}>{text_val}</text>")
+        return out
+
+    label_lines = _render_text_items(labels, default_font="Segoe UI")
+    masthead_lines = _render_text_items(masthead, default_font="Georgia")
+
+    svg_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+    ]
+    if defs_lines:
+        svg_parts.append("  <defs>")
+        svg_parts.extend(defs_lines)
+        svg_parts.append("  </defs>")
+
+    svg_parts.extend(
+        [
+            "  <!-- Layer 1: CineHybrid-3D Lossless 3D Artwork via SVG 1.1 xlink:href -->",
+            '  <g id="Layer_3D_Artwork">',
+            f'    <image x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="none" '
+            f'xlink:href="data:image/png;base64,{b64_data}"/>',
+            "  </g>",
+        ]
+    )
+    if arrow_lines:
+        svg_parts.append("  <!-- Layer 2: Filter-Free Soft Gradient Vector Arrows -->")
+        svg_parts.append('  <g id="Layer_Vector_Arrows">')
+        svg_parts.extend(arrow_lines)
+        svg_parts.append("  </g>")
+    if label_lines:
+        svg_parts.append("  <!-- Layer 3: Refined Editable Scientific Labels -->")
+        svg_parts.append('  <g id="Layer_Labels">')
+        svg_parts.extend(label_lines)
+        svg_parts.append("  </g>")
+    if masthead_lines:
+        svg_parts.append("  <!-- Layer 4: Editable Journal Masthead -->")
+        svg_parts.append('  <g id="Layer_Masthead">')
+        svg_parts.extend(masthead_lines)
+        svg_parts.append("  </g>")
+
+    svg_parts.append("</svg>\n")
+    svg_text = "\n".join(svg_parts)
+    output_svg.parent.mkdir(parents=True, exist_ok=True)
+    output_svg.write_text(svg_text, encoding="utf-8")
+
+    return {
+        "ok": True,
+        "scheme": "CineHybrid-3D",
+        "output_svg": str(output_svg),
+        "width": w,
+        "height": h,
+        "illustrator_checks": {
+            "has_xmlns_xlink": 'xmlns:xlink="http://www.w3.org/1999/xlink"' in svg_text,
+            "has_xlink_href_base64": 'xlink:href="data:image/png;base64,' in svg_text,
+            "zero_fe_drop_shadow": "<feDropShadow" not in svg_text and "<filter" not in svg_text,
+            "zero_missing_font_stack": "helvetica neue" not in svg_text.lower(),
+        },
+    }
 
 
 def utc_now() -> str:
@@ -485,13 +683,14 @@ class LocalDiffusersBackend(RegenerationBackend):
         if not model_id:
             raise ValueError("`--model-id` (local path or HuggingFace model ID) is required for local_diffusers.")
 
+        effective_steps = compute_effective_steps(mode, int(steps), float(strength))
         manifest["backend"].update(
             {
                 "type": self.backend_type,
                 "mode": mode,
                 "model_id": model_id,
                 "model_revision": model_revision,
-                "steps": 1 if mode == "vae_roundtrip" else int(steps),
+                "steps": effective_steps,
                 "strength": 0.0 if mode == "vae_roundtrip" else float(strength),
                 "seed": int(seed),
                 "pad_multiple": int(pad_multiple),
@@ -509,7 +708,7 @@ class LocalDiffusersBackend(RegenerationBackend):
         try:
             import torch
             from diffusers import AutoencoderKL, AutoPipelineForImage2Image
-        except ImportError as exc:
+        except (ImportError, OSError) as exc:
             _transition_job(
                 manifest,
                 "failed",
@@ -557,12 +756,13 @@ class LocalDiffusersBackend(RegenerationBackend):
                     pipe.enable_vae_tiling()
                 pipe = pipe.to(resolved_device)
                 gen = torch.Generator(device=resolved_device).manual_seed(int(seed))
+                g_scale = 0.0 if "turbo" in model_id.lower() else 1.0
                 result = pipe(
                     prompt="",
                     image=padded_im,
                     strength=float(strength),
-                    num_inference_steps=int(steps),
-                    guidance_scale=1.0,
+                    num_inference_steps=effective_steps,
+                    guidance_scale=g_scale,
                     generator=gen,
                 )
                 out_padded = result.images[0].convert("RGB")
@@ -728,13 +928,14 @@ class MockBackend(RegenerationBackend):
         **_: Any,
     ) -> dict[str, Any]:
         _validate_conservative_params(mode, strength, allow_high_strength, prompt="")
+        effective_steps = compute_effective_steps(mode, int(steps), float(strength))
         manifest["backend"].update(
             {
                 "type": self.backend_type,
                 "mode": mode,
                 "model_id": model_id,
                 "model_revision": model_revision,
-                "steps": 1 if mode == "vae_roundtrip" else int(steps),
+                "steps": effective_steps,
                 "strength": 0.0 if mode == "vae_roundtrip" else float(strength),
                 "seed": int(seed),
                 "pad_multiple": int(pad_multiple),
@@ -860,7 +1061,25 @@ def main(argv: list[str] | None = None) -> int:
     p_can.add_argument("--job-dir", required=True, type=Path)
     p_can.add_argument("--comfy-url", default="http://127.0.0.1:8188")
 
+    p_hyb = sub.add_parser(
+        "compose-hybrid-svg",
+        help="Compose CineHybrid-3D Illustrator SVG 1.1 (xlink:href 3D layer + soft gradient arrows + single-font editable text).",
+    )
+    p_hyb.add_argument("--background-png", required=True, type=Path, help="Reconstructed or cleaned 3D background PNG.")
+    p_hyb.add_argument("--spec-json", required=True, type=Path, help="JSON spec with arrows, labels, and masthead.")
+    p_hyb.add_argument("--output-svg", required=True, type=Path, help="Output Illustrator-ready SVG 1.1 path.")
+
     args = parser.parse_args(argv)
+    if args.command == "compose-hybrid-svg":
+        spec_data = json.loads(args.spec_json.resolve().read_text(encoding="utf-8"))
+        res = compose_cine_hybrid_svg(
+            background_png=args.background_png.resolve(),
+            spec=spec_data,
+            output_svg=args.output_svg.resolve(),
+        )
+        print(json.dumps(res, ensure_ascii=False))
+        return 0 if all(res["illustrator_checks"].values()) else 1
+
     job_dir = args.job_dir.resolve()
 
     if args.command == "prepare":

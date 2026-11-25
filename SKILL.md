@@ -1,74 +1,99 @@
 ---
 name: Image-Reconstruction
-description: Zero-cost, publication-grade scientific figure reconstruction into clean, native editable SVG (directly openable in Adobe Illustrator / Inkscape / Figma to save as AI, PDF, EPS, or high-DPI TIFF). Reconstructs frames, gradients, axes, smooth mathematical curves, connectors, flat vector icons, and native subscript/superscript typography in pure SVG code, while seamlessly integrating complex anatomical/photorealistic sub-illustrations via local ROI vector extraction or local tracing, followed by headless PNG rendering and mandatory visual verification. Use when the user asks to reconstruct, vectorize, redraw, or convert a scientific diagram, flowchart, mechanism figure, or roadmap image into editable vector artwork without paid tracing APIs.
+description: Zero-cost, publication-grade scientific figure and 3D cover reconstruction into clean, native editable SVG (directly openable in Adobe Illustrator / Inkscape / Figma with zero missing-link or font popups). Supports dual-track architecture: (1) PureVector-2D for 2D scientific diagrams, flowcharts, mechanism figures, and plots (100% pure native SVG geometry, math subscripts/superscripts, and local ROI vector tracing via vtracer), and (2) CineHybrid-3D for 3D rendered journal covers, volumetric lighting artwork, and microscopy illustrations (stroke-masked harmonic inpainting + sd-turbo strength=0.01 lossless 3D background regeneration via SVG 1.1 xlink:href + filter-free soft gradient vector arrows + single-font refined editable typography), followed by headless PNG rendering and mandatory 1:1 visual QA.
 ---
 
 # Image-Reconstruction
 
-`original image -> pixel/color/text geometry inspection -> pure native SVG code (frames, gradients, curves, arrows, flat icons, native math text) + local vector ROI for complex anatomical art -> headless PNG render -> visual diff & polish -> Illustrator-ready SVG`
+This skill produces **clean, semantic, Illustrator-native editable SVG artwork at zero API cost** using a **Dual-Track Architecture**:
 
-This skill produces **clean, semantic, Illustrator-native vector artwork at zero API cost**. Unlike blind whole-image bitmap auto-tracing (which breaks 1 px borders, creates patchy color blocks, and fragments boxes into hundreds of uneditable shards), every structural element is authored as true editable vector geometry (`<rect rx>`, `<linearGradient>`, `<path>` Bezier curves, `<line>`, `<text>` with native `<tspan>` subscripts/superscripts).
+1. **Track A — `PureVector-2D`（纯原生矢量重建模式，默认用于 2D 科研插图）**:
+   - **Target**: Scientific diagrams, flowcharts, mechanism schematics, mathematical curve plots, and multi-panel roadmaps.
+   - **Pipeline**:
+     `original image -> pixel/color/OCR inspection -> 100% pure native SVG code (frames, gradients, Bezier/sine curves, arrows, flat icons, native <tspan> math text) + local vtracer vector ROI for small anatomical art -> headless PNG render -> 1:1 visual QA -> Illustrator-ready pure vector SVG`
+2. **Track B — `CineHybrid-3D`（3D 光影无损混合分层模式，专用于 3D 渲染期刊封面与连续体积光影插画）**:
+   - **Target**: 3D rendered journal covers (e.g., *Nature* / *Cell* / *Science* covers), continuous volumetric lighting, bokeh depth-of-field blur, glowing cells, and micro-particle scenes where whole-image polygon vectorization (`vtracer`) would create "oil-painting" color-band quantization.
+   - **Pipeline**:
+     `original 3D image -> inspect OCR/arrow boxes -> surgical stroke-masked Laplace harmonic inpainting -> local sd-turbo (strength=0.01, steps=100, CUDA) lossless 3D regeneration -> SVG 1.1 xlink:href Base64 3D layer + filter-free dual-stroke gradient vector arrows + single-font slender live <text> -> headless PNG render -> 1:1 visual QA -> Illustrator-ready layered hybrid SVG`
+
+---
 
 ## Core Principles
 
-1. **Zero broken borders, zero color patches**: Never rely on whole-image bitmap auto-tracing for boxes, cards, axes, mathematical curves, dashed lines, arrows, or text. Author them directly as clean native SVG primitives.
-2. **Zero missing-glyph boxes (`☒`)**: Never use obscure Unicode subscript/superscript codepoints (`ᵢ`, `ₚ`, `ₛ`, `ᵧ`, `₋`, `₀`, `ₘ`, `²`) that standard serif fonts (`Georgia`, `Times New Roman`) lack. Always use standard ASCII/Greek characters (`i`, `p`, `sys`, `state`, `0`, `2+`, `θ`, `μ`, `β`, `π`, `τ`, `λ`, `∝`, `→`, `↔`, `−`, `×`, `·`) styled with native `<tspan font-size="..." dy="...">` vertical offsets and native `<line>` overbars (e.g., for $\bar{w}_\pi$).
-3. **Hybrid strategy for complex organic/anatomical illustrations**:
-   - **Flat geometric/line icons** (sun, moon, waves, bar charts, targets, gears, calendars, coins, network nodes, flasks, sprouts, clocks, simple brains): draw cleanly as native SVG vector paths.
-   - **Complex shaded anatomical/realistic sub-illustrations** (detailed brain gyri, corticospinal tract, spinal cord cross-section, muscle fibers, realistic hands, synapses): keep them strictly isolated in local ROIs via `scripts/trace_local_roi.py` (either extracting pure vector paths from an existing local SVG, tracing the cropped ROI locally with free open-source `vtracer`, or clean local harmonic-inpainted cutout if needed) and wrap each in its own named `<g id="Art_...">` group.
-4. **Always close the loop with visual verification**: After generating the SVG, render a 1:1 PNG preview with `scripts/render_svg_preview.py` and visually inspect it with `read_file` against the original image. Fix every spacing, clipping, curve-bound, arrow-fill, or overbar alignment issue before delivering.
+1. **Choose the right track for the visual physics**:
+   - Use **`PureVector-2D`** whenever the figure is built from cards, frames, plots, curves, arrows, flat icons, or isolated anatomical sub-illustrations (zero `<image>` nodes).
+   - Use **`CineHybrid-3D`** whenever the scene is a continuous 3D volumetric render or journal cover where preserving sub-pixel bokeh, glow, and micro-particles without posterization is essential, while all text, mastheads, and overlay arrows must be native editable vectors.
+2. **Zero broken borders, zero color patches (`PureVector-2D`)**: Never rely on whole-image bitmap auto-tracing for boxes, cards, axes, mathematical curves, dashed lines, arrows, or text. Author them directly as clean native SVG primitives (`<rect rx>`, `<linearGradient>`, `<path>`, `<line>`, `<text>`).
+3. **Zero missing-glyph boxes (`☒`)**: Never use obscure Unicode subscript/superscript codepoints (`ᵢ`, `ₚ`, `ₛ`, `ᵧ`, `₋`, `₀`, `ₘ`, `²`) that standard fonts lack. Always use standard ASCII/Greek characters (`i`, `p`, `sys`, `state`, `0`, `2+`, `θ`, `μ`, `β`, `π`, `τ`, `λ`, `γ`, `∝`, `→`, `↔`, `−`, `×`, `·`) styled with native `<tspan font-size="..." dy="...">` vertical offsets and native `<line>` overbars (e.g., for $\bar{w}_\pi$).
+4. **Zero Adobe Illustrator popup dialogs or hidden layers**:
+   - **No missing-link popup**: When embedding a `CineHybrid-3D` 3D layer, always declare `xmlns:xlink="http://www.w3.org/1999/xlink"` on `<svg>` and use `xlink:href="data:image/png;base64,..."` (never bare SVG 2 `href`).
+   - **No disappearing text/arrow layers**: Never attach `<feDropShadow>` or `<filter>` to `<g>` groups (Illustrator hides them). Use filter-free dual-stroke semi-transparent glow (`stroke-opacity="0.22"` wide under-stroke + slender core stroke).
+   - **No missing-font popup**: Never put uninstalled macOS fonts like `'Helvetica Neue'` in `font-family`. Always use a single installed Windows font name (`font-family="Segoe UI"` for sans-serif, `font-family="Georgia"` for serif).
+5. **Always close the loop with visual verification**: After generating any SVG, render a 1:1 PNG preview with `scripts/render_svg_preview.py` and visually inspect it with `read_file` against the original image.
 
-## Step-by-Step Workflow
+---
 
-### Step 1: Inspect Original Geometry, Palette, and Text Positions
-Run the bundled inspector on the source image:
+## Track A Workflow: `PureVector-2D`（2D 科研机制图 / 流程图 / 曲线图纯矢量重建）
+
+### Step A1: Inspect Original Geometry, Palette, and Text Positions
 ```bash
 python scripts/inspect_image.py --image <original.jpg|png> --output-json <work_dir>/inspection.json
 ```
-This records:
-- Exact canvas `width` and `height` (always match the SVG `viewBox="0 0 W H"` to the original canvas).
-- Pixel-accurate OCR text bounding boxes (`[x, y, w, h]`) via Windows WinRT OCR (when available) for exact baseline alignment.
-- Use `--sample name:x,y` flags (or a short Python snippet) to sample exact Hex colors for headers, gradients, borders, pills, shaded bands, and text fills directly from the source image.
+- Records exact canvas `width` and `height` (match `viewBox="0 0 W H"`), OCR bounding boxes (`[x, y, w, h]`), and sampled Hex colors (`--sample name:x,y`).
 
-### Step 2: Classify Visual Components (Pure Native vs. Local Hybrid ROI)
-Partition the figure into two tiers:
+### Step A2: Partition into Tier 1 (Pure Native Code) & Tier 2 (Local Vector ROIs)
 - **Tier 1 (Pure Native SVG Code — 100% of structure)**:
   - Outer cards, rounded rectangles, clipped header gradient bars (`<clipPath>` + `<linearGradient>`).
   - Axes, grid/ceiling dashed lines, shaded bands, smooth mathematical curves (Bezier / sampled sine waves clipped cleanly inside plot axes).
-  - Connectors, elbow arrows with rounded corners (`Q`), bidirectional arrows, dividers.
-  - Flat icons and all text, labels, legends, and mathematical formulas with native `<tspan>` subscripts/superscripts.
-- **Tier 2 (Local Organic/Anatomical ROIs — only when complex shaded illustrations exist)**:
+  - Connectors, elbow arrows with rounded corners (`Q`), bidirectional arrows, dividers, flat icons, and all live `<text>` / `<tspan>` formulas.
+- **Tier 2 (Local Organic/Anatomical ROIs — only when complex shaded sub-illustrations exist)**:
   - Identify tight ROI bounding boxes `[x0, y0, x1, y1]` around each organic sub-illustration.
-  - If an anatomical ROI overlaps text, first run `scripts/seamless_inpaint_clean.py` (with optional `--mask-output <mask.png>` for auditability) on just that region.
-  - **Optional Local-First Neural Regeneration Branch**: When explicitly requested for complex organic texture ROIs, follow [references/neural-regeneration-protocol.md](references/neural-regeneration-protocol.md) and use `scripts/neural_regeneration.py` (`prepare -> run -> qa -> accept|reject`). Defaults are local-first and conservative (`vae_roundtrip` single pass or `diffusion_img2img` at `strength=0.10`, cap `0.20`, no prompt/ControlNet/LoRA, reversible edge padding). On failure, timeout, missing dependencies, or QA rejection, preserve `manifest.json` as `unverified`/`rejected` and automatically fall back to the untouched original/cleaned SVG path. Never use reconstructed output for Tier 1 structure or scientific evidence.
+  - If text overlaps the ROI, clean just that region first with `scripts/seamless_inpaint_clean.py --mask-output <mask.png>`.
   - Convert or extract each ROI as a clean pure-vector `<g id="Art_...">` using `scripts/trace_local_roi.py`:
-    - Mode A (local free tracing): `python scripts/trace_local_roi.py --mode vtracer --image <img.png> --roi x0,y0,x1,y1 --output <roi.svg>`
-    - Mode B (extract from existing SVG): `python scripts/trace_local_roi.py --mode extract-svg --svg <existing.svg> --roi x0,y0,x1,y1 --output <roi.svg>`
-  - **Important SVG inheritance guard**: When extracting stroke-only `<path>` elements from another SVG whose root `<g>` has `fill="none"`, explicitly add `fill="none"` to every path that has `stroke` and no `fill` (otherwise curved arrows turn into solid black blobs). `trace_local_roi.py` handles this automatically.
+    - Local `vtracer`: `python scripts/trace_local_roi.py --mode vtracer --image <img.png> --roi x0,y0,x1,y1 --output <roi.svg>`
+    - Extract from existing SVG: `python scripts/trace_local_roi.py --mode extract-svg --svg <existing.svg> --roi x0,y0,x1,y1 --output <roi.svg>`
+  - **SVG inheritance guard**: Always ensure stroke-only `<path>` elements carry explicit `fill="none"`.
 
-### Step 3: Author Structured, Illustrator-Ready SVG
-Read [references/svg-illustrator-best-practices.md](references/svg-illustrator-best-practices.md) before authoring the SVG.
-Key structure rules:
-- Organize into semantic top-level `<g id="Layer_...">` groups (`Layer_Background`, `Layer_Title`, `Layer_Connectors`, `Layer_PanelA`, etc.) so Adobe Illustrator exposes a clean Layer/Group hierarchy.
-- Use SVG 1.1 compatible gradients, `<clipPath>` for rounded header bars, explicit `stroke-linecap` / `stroke-linejoin`, and `Georgia, 'Times New Roman', serif` (or `Arial, Helvetica, sans-serif` if the source is sans-serif).
-- Keep all `<text>` live and editable (never convert text to outlines).
+### Step A3: Author Structured Pure-Vector SVG & Visual QA
+- Follow [references/svg-illustrator-best-practices.md](references/svg-illustrator-best-practices.md).
+- Render 1:1 preview via `scripts/render_svg_preview.py` and verify zero text clipping, zero `☒` glyphs, and exact curve bounds.
 
-### Step 4: Render Preview and Perform Strict Visual QA
-Render the SVG to PNG at exact canvas dimensions:
+---
+
+## Track B Workflow: `CineHybrid-3D`（3D 渲染期刊封面 / 体积光影无损混合分层重建）
+
+Read [references/neural-regeneration-protocol.md](references/neural-regeneration-protocol.md) and [references/svg-illustrator-best-practices.md](references/svg-illustrator-best-practices.md) when running `CineHybrid-3D`.
+
+### Step B1: Coordinate Inspection & Surgical Stroke-Only Harmonic Inpainting
+1. Run `scripts/inspect_image.py` to locate all text labels, masthead text, and overlay arrows.
+2. Define tight surgical bounding boxes in `boxes_clean.json` (`mode: "light_text"` for bright labels/arrows on dark 3D backgrounds, or `"dark_text"` on bright backgrounds) so adjacent 3D structures (e.g., cell receptors or spheres) are never touched.
+3. Run `neural_regeneration.py prepare` (which invokes `seamless_inpaint_clean.py` with 240 Laplace harmonic diffusion iterations and exports `text_mask.png`):
+   ```bash
+   python scripts/neural_regeneration.py prepare --job-dir <job_dir> --image <original.jpg|png> --boxes-json <boxes_clean.json> --ocr-baseline-json <inspection.json> --iterations 240
+   ```
+
+### Step B2: Ultra-Low-Strength (`0.01`) Local `sd-turbo` 3D Regeneration & Automated QA
+Run a single deterministic ultra-low-strength pass through local `stabilityai/sd-turbo` (`strength=0.01`, `steps=100` so `int(steps * strength) == 1`, `guidance_scale=0.0`, empty prompt `""`, reversible right/bottom edge padding to multiple of 8 and exact crop-back):
+```bash
+python scripts/neural_regeneration.py run --job-dir <job_dir> --backend local_diffusers --mode diffusion_img2img --model-id stabilityai/sd-turbo --strength 0.01 --steps 100 --seed 2026 --device auto
+python scripts/neural_regeneration.py qa --job-dir <job_dir> --min-edge-corr 0.85
+```
+- This reconstructs a 100% clean, non-posterized 3D background (`<job_dir>/reconstructed.png`) with `mean_abs_rgb_delta < 4.0`, preserving every bokeh glow and micro-particle.
+- If local Diffusers/models are unavailable or fail, automatically fall back to `<job_dir>/cleaned.png`.
+
+### Step B3: Illustrator SVG 1.1 Layered Assembly (`compose-hybrid-svg` or Custom SVG)
+Assemble the 4 semantic Illustrator layers (either via `python scripts/neural_regeneration.py compose-hybrid-svg --background-png <reconstructed.png> --spec-json <spec.json> --output-svg <output.svg>` or direct SVG authoring):
+1. **`<g id="Layer_3D_Artwork">`**: Embed `reconstructed.png` as Base64 using SVG 1.1 `xmlns:xlink="http://www.w3.org/1999/xlink"` and `xlink:href="data:image/png;base64,..."`.
+2. **`<g id="Layer_Vector_Arrows">` / `<g id="Layer_Cytokine_Arrows">`**: Author multi-stop `userSpaceOnUse` opacity gradients (`stop-opacity="0.0"` at tail -> `0.55` at 35% -> `0.92` at 80% -> `1.0` at tip) + dual-stroke soft glow (`stroke-opacity="0.22"` width `6.5` under-stroke + width `2.7` core stroke + `<polygon>` head). **Zero `<feDropShadow>` filters**.
+3. **`<g id="Layer_Labels">`**: Author refined slender `<text>` labels (`font-family="Segoe UI"`, weights `400`/`500`/`600`, exact rotation transforms such as `transform="rotate(-26 cx cy)"`).
+4. **`<g id="Layer_Masthead">`**: Author journal masthead `<text>` (`font-family="Georgia"`, weight `400`, exact letter-spacing).
+
+### Step B4: Headless 1:1 Visual QA & Delivery
 ```bash
 python scripts/render_svg_preview.py --svg <output.svg> --png <preview.png> --width <W> --height <H>
 ```
-Then open `<preview.png>` with `read_file` and compare every region against the original image:
-1. Check every text line for clipping against card borders or overlap with adjacent columns/curves.
-2. Check mathematical equations, subscripts, superscripts, Greek symbols, and overbars (`w̄`) for exact alignment and zero `☒` missing glyphs.
-3. Check plot curves against axis bounds (clip curves cleanly inside plot boxes where needed).
-4. Check extracted anatomical ROIs for stray background fills or missing `fill="none"` on curved strokes.
-5. Check all borders, dashed lines, arrows, and rounded corners for continuity and color fidelity.
-
-Iterate on the SVG and re-render until the visual check passes cleanly.
-
-### Step 5: Deliver
-Provide clickable file links to:
-1. The final native editable `.svg` (note that the user can drag/open it directly in Adobe Illustrator to edit any box/curve/text and save as `.ai`, `.pdf`, `.eps`, or high-DPI `.tiff`).
-2. The verified `.png` preview.
-3. A brief summary of layers, editable text/math formatting, and zero API cost.
+Inspect `<preview.png>` with `read_file` against the original 3D image to verify:
+- Zero residual text/arrow ghosts on the 3D background.
+- Natural long-fade tail and slender weight on all gradient vector arrows.
+- Crisp, slender typography matching original positions and angles.
+- Deliver clickable links to the final `.svg` and `.png` preview.

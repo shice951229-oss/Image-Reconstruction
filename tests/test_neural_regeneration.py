@@ -248,6 +248,72 @@ class TestNeuralRegeneration(unittest.TestCase):
         self.assertNotIn("leaked_token_999", raw)
         self.assertIn("[REDACTED]", raw)
 
+    def test_compute_effective_steps_auto_scales_for_ultra_low_strength(self) -> None:
+        # At strength=0.01 (CineHybrid-3D preset), steps=20 must auto-scale to >= 100 so int(steps*strength) >= 1
+        self.assertEqual(nr.compute_effective_steps("diffusion_img2img", steps=20, strength=0.01), 100)
+        self.assertEqual(nr.compute_effective_steps("diffusion_img2img", steps=120, strength=0.01), 120)
+        self.assertEqual(nr.compute_effective_steps("vae_roundtrip", steps=50, strength=0.01), 1)
+
+    def test_cine_hybrid_3d_svg_composer_enforces_illustrator_guardrails(self) -> None:
+        spec = {
+            "arrows": [
+                {"id": "Arrow_1", "x1": 10, "y1": 40, "x2": 50, "y2": 15},
+            ],
+            "labels": [
+                {
+                    "x": 30,
+                    "y": 25,
+                    "text": "CAR-T Cell",
+                    "font_family": "'Helvetica Neue', 'Segoe UI', Arial, sans-serif",
+                    "font_size": 14,
+                    "font_weight": "600",
+                    "text_anchor": "middle",
+                    "fill": "#F2F7FF",
+                },
+                {
+                    "x": 28,
+                    "y": 35,
+                    "text": "IL-2, IFN-γ",
+                    "font_family": "Segoe UI",
+                    "font_size": 11,
+                    "font_weight": "500",
+                    "rotate": -26,
+                },
+            ],
+            "masthead": [
+                {
+                    "x": 5,
+                    "y": 12,
+                    "text": "NATURE",
+                    "font_family": "Georgia, 'Times New Roman', serif",
+                    "font_size": 24,
+                    "font_weight": "400",
+                }
+            ],
+        }
+        spec_path = self.tmp / "hybrid_spec.json"
+        spec_path.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+        out_svg = self.tmp / "cine_hybrid.svg"
+
+        rc = nr.main(
+            [
+                "compose-hybrid-svg",
+                "--background-png", str(self.src_img),
+                "--spec-json", str(spec_path),
+                "--output-svg", str(out_svg),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(out_svg.is_file())
+        svg_text = out_svg.read_text(encoding="utf-8")
+        self.assertIn('xmlns:xlink="http://www.w3.org/1999/xlink"', svg_text)
+        self.assertIn('xlink:href="data:image/png;base64,', svg_text)
+        self.assertNotIn("<feDropShadow", svg_text)
+        self.assertNotIn("<filter", svg_text)
+        self.assertNotIn("Helvetica Neue", svg_text)
+        self.assertIn('font-family="Segoe UI"', svg_text)
+        self.assertIn('font-family="Georgia"', svg_text)
+
 
 if __name__ == "__main__":
     unittest.main()
