@@ -66,8 +66,10 @@ Read [references/neural-regeneration-protocol.md](references/neural-regeneration
 
 ### Step B1: Coordinate Inspection & Surgical Stroke-Only Harmonic Inpainting
 1. Run `scripts/inspect_image.py` to locate all text labels, masthead text, and overlay arrows.
-2. Define tight surgical bounding boxes in `boxes_clean.json` (`mode: "light_text"` for bright labels/arrows on dark 3D backgrounds, or `"dark_text"` on bright backgrounds) so adjacent 3D structures (e.g., cell receptors or spheres) are never touched.
-3. Run `neural_regeneration.py prepare` (which invokes `seamless_inpaint_clean.py` with 240 Laplace harmonic diffusion iterations and exports `text_mask.png`):
+2. Define tight surgical bounding boxes in `boxes_clean.json` (`mode: "light_text"` for bright labels/arrows on dark 3D backgrounds, or `"dark_text"` on bright backgrounds) so adjacent 3D structures (e.g., cell receptors or spheres) are never touched:
+   - **Split multi-line labels into tight single-line boxes** whenever curved anatomical contours, medallions, or pointer lines sit next to shorter lines (keep ~2–3 px vertical margin above/below glyphs so anti-aliased bottom-row pixels never sit on the Laplace boundary and bleed inward).
+   - **Elevate `threshold` to `55–65` with `dilate: 1`** on light-background shaded anatomical rims (instead of default `16–22, dilate: 2`) so only dark text strokes are masked without smudging pale grey/pink contour lines.
+3. Run `neural_regeneration.py prepare` (which invokes `seamless_inpaint_clean.py` with 240 Laplace harmonic diffusion iterations and exports `text_mask.png`), and visually inspect `<job_dir>/cleaned.png` (plus zoomed crops of dense anatomical rims) before running `sd-turbo`:
    ```bash
    python scripts/neural_regeneration.py prepare --job-dir <job_dir> --image <original.jpg|png> --boxes-json <boxes_clean.json> --ocr-baseline-json <inspection.json> --iterations 240
    ```

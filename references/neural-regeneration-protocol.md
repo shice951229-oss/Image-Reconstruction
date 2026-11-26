@@ -57,7 +57,8 @@ All backends implement the same lifecycle interface in `scripts/neural_regenerat
 
 1. **Before reconstruction**:
    - Run `seamless_inpaint_clean.py --mask-output <mask.png>` (via `prepare`) using tight surgical bounding boxes around text and overlay arrows so neighboring 3D anatomy/receptors remain 100% untouched.
-   - Persist the original OCR boxes, text boxes JSON, and binary text mask inside the job directory.
+   - For multi-line labels adjacent to curved anatomical rims, medallions, or pointer lines, split into **single-line tight boxes** with ~2–3 px vertical margin (preventing anti-aliased edge pixels from bleeding across the Laplace boundary) and raise `"threshold"` to `55–65` with `"dilate": 1` over shaded contours so pale anatomical edges are never smudged.
+   - Persist the original OCR boxes, text boxes JSON, and binary text mask inside the job directory, and visually verify `cleaned.png` before running `sd-turbo`.
 2. **Immutable geometric reference**:
    - All text labels, journal mastheads, and overlay arrows are restored as live editable SVG `<text>` and `<line>`/`<polygon>` vector elements aligned to the **original image**.
 3. **Strict scope**:
