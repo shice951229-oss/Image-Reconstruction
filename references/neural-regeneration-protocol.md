@@ -36,12 +36,15 @@ All backends implement the same lifecycle interface in `scripts/neural_regenerat
 | `compose-hybrid-svg` | Package a verified 3D background PNG + JSON specification of gradient vector arrows, labels, and masthead into an Illustrator-compliant `CineHybrid-3D` SVG 1.1 file. |
 
 ### Supported Local Modes & Presets
-1. **`CineHybrid-3D` Ultra-Low-Side-Effect Diffusion Preset (`diffusion_img2img`, Recommended for 3D Covers)**:
+1. **`CineHybrid-3D` Ultra-Low-Side-Effect Diffusion Preset (`diffusion_img2img`, Default High-Fidelity for 3D Covers)**:
    - Model: `stabilityai/sd-turbo` on local CUDA GPU (`torch.float16`) or CPU (`torch.float32`).
    - Parameters: `strength = 0.01`, `steps = 100` (auto-scaled via `compute_effective_steps` so `int(steps * strength) >= 1`), `guidance_scale = 0.0`, `prompt = ""`.
-   - Typical verified QA metrics on 3D journal covers: `mean_abs_rgb_delta ≈ 3.67` (threshold `<= 14.0`), `max_mean_channel_shift ≈ 0.27`, `edge_correlation ≈ 0.868`.
+   - Typical verified QA metrics on 3D covers & complex biomedical art: `mean_abs_rgb_delta ≈ 3.7–4.8` (threshold `<= 14.0`), `max_mean_channel_shift ≈ 0.27–0.95`, `edge_correlation ≈ 0.868–0.875` (`>= 0.85`).
    - Hard conservative cap: `strength <= 0.20` (higher values require explicit `--allow-high-strength`).
-2. **`vae_roundtrip`**:
+2. **Optional Stronger Texture Re-synthesis Preset (`strength = 0.1`, `steps = 20`)**:
+   - Runs `2` denoising steps within the `<= 0.20` conservative cap when stronger neural texture smoothing/re-synthesis is explicitly desired.
+   - Observed trade-off on dense biomedical illustrations: `mean_abs_rgb_delta ≈ 6.90`, `max_mean_channel_shift ≈ 1.45`, `edge_correlation ≈ 0.788` (softens fine high-frequency detail and drops below the default `0.85` edge-correlation gate; pass `--min-edge-corr 0.75` if explicitly using `0.1`).
+3. **`vae_roundtrip`**:
    - Runs a single deterministic `encode -> decode` pass through a local `diffusers.AutoencoderKL`.
 
 ### Reversible Padding Rule

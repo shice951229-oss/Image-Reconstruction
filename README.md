@@ -18,7 +18,14 @@
 ## Why Dual-Track? / 为什么采用双轨方案？
 
 1. **For 2D Diagrams (`PureVector-2D`)**: Whole-image bitmap auto-tracing breaks 1 px borders, turns gradient headers into patchy shards, and fragments boxes into uneditable paths. Authoring structure directly in native SVG code + isolating small anatomical sub-illustrations with local `vtracer` delivers 100% pure vector precision at **$0 cost**.
-2. **For 3D Covers (`CineHybrid-3D`)**: Running polygon vectorization (`vtracer`) across a full 3D volumetric render quantizes continuous bokeh blur and radial cell glow into flat "oil-painting" color bands. `CineHybrid-3D` preserves 100% of the continuous 3D lighting in an audited `sd-turbo (0.01)` SVG 1.1 `xlink:href` bottom layer while reconstructing all mastheads, scientific labels, and soft long-fade golden arrows as crisp, slender, Illustrator-native vectors on top.
+2. **For 3D Covers (`CineHybrid-3D`)**: Running polygon vectorization (`vtracer`) across a full 3D volumetric render quantizes continuous bokeh blur and radial cell glow into flat "oil-painting" color bands. `CineHybrid-3D` preserves 100% of the continuous 3D lighting in an audited `sd-turbo` SVG 1.1 `xlink:href` bottom layer while reconstructing all mastheads, scientific labels, and soft long-fade golden arrows as crisp, slender, Illustrator-native vectors on top.
+
+### `CineHybrid-3D` Strength Presets / 强度档位参考
+
+| Preset / 档位 | Parameters / 参数 | Denoising Steps / 去噪步数 | Observed Metrics / 实测指标 | Trade-off & Recommendation / 适用场景与取舍 |
+| :--- | :--- | :---: | :--- | :--- |
+| **High-Fidelity Default**<br>（默认高保真档） | `strength=0.01`, `steps=100` | `1` 步 | `mean_abs_rgb_delta ≈ 3.7–4.8`<br>`edge_correlation ≈ 0.87–0.88` | Preserves fine micro-textures (trabecular bone, cell membranes, cristae) and passes `--min-edge-corr 0.85`. Recommended default for publication figures. |
+| **Stronger Texture Re-synthesis**<br>（可选纹理重绘档） | `strength=0.1`, `steps=20` | `2` 步 | `mean_abs_rgb_delta ≈ 6.9`<br>`edge_correlation ≈ 0.79` | Applies stronger neural texture smoothing/re-synthesis (`--strength 0.1` stays within the `<= 0.20` conservative cap). Trade-off: softens fine high-frequency detail and drops below `0.85` edge correlation (pass `--min-edge-corr 0.75` if explicitly selecting this preset). |
 
 ---
 

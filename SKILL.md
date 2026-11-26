@@ -78,7 +78,8 @@ Run a single deterministic ultra-low-strength pass through local `stabilityai/sd
 python scripts/neural_regeneration.py run --job-dir <job_dir> --backend local_diffusers --mode diffusion_img2img --model-id stabilityai/sd-turbo --strength 0.01 --steps 100 --seed 2026 --device auto
 python scripts/neural_regeneration.py qa --job-dir <job_dir> --min-edge-corr 0.85
 ```
-- This reconstructs a 100% clean, non-posterized 3D background (`<job_dir>/reconstructed.png`) with `mean_abs_rgb_delta < 4.0`, preserving every bokeh glow and micro-particle.
+- This reconstructs a 100% clean, non-posterized 3D background (`<job_dir>/reconstructed.png`) with `mean_abs_rgb_delta < 5.0` and `edge_correlation >= 0.85`, preserving fine micro-structures, bokeh glow, and micro-particles.
+- **Optional stronger texture re-synthesis (`strength=0.1`)**: When stronger neural texture smoothing/re-synthesis is explicitly desired, use `--strength 0.1 --steps 20` (`2` denoising steps, within the `<= 0.20` conservative cap). Note that `strength=0.1` softens fine high-frequency details (`mean_abs_rgb_delta ≈ 6.9`, `edge_correlation ≈ 0.79`), so run `qa` with `--min-edge-corr 0.75` if selecting this preset.
 - If local Diffusers/models are unavailable or fail, automatically fall back to `<job_dir>/cleaned.png`.
 
 ### Step B3: Illustrator SVG 1.1 Layered Assembly (`compose-hybrid-svg` or Custom SVG)
